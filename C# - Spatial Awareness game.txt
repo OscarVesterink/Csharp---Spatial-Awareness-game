@@ -1,0 +1,402 @@
+using System;
+using System.Drawing;
+using System.Windows.Forms;
+
+namespace Young_Capital_NEXT___Traineeship___Kennisopdracht
+{
+    public partial class Form1 : Form
+    {   /* Voor u ligt de broncode van mijn spel waarin het ruimtelijk inzicht getest kan worden. Gedurende de code zal ik proberen helder te verklaren wat een stuk code doet en waarom ik voor deze keuze gekozen heb.
+         * U zult merken dat ik graag met voids werk om bijvoorbeeld eigenschappen die in meerdere stukken van de code voorkomen, maar één keer hoeven aan te passen. In de start van de broncode heb ik de game-events, als basis voor de werking van het spel,
+         * als voids staan om vervolgens daaronder te werken met losse voids waar ik naar zal verwijzen in de code. Met ////// heb ik geprobeerd aan te geven waar een nieuw 'hoofdstuk' van voids als het ware begint. De voids zijn hierin gesorteerd op functie. 
+         * Dit geeft hopelijk een helder overzicht voor u in de broncode.
+         * Ik hoop dat het voldoende helder is om een goed beeld te krijgen van de werking van de code. */
+
+
+
+        //Vaststellen van 'classes' en hun startwaarden.
+
+        //De kogel moet per frame van het spel 10 pixels opzij schuiven als het afgeschoten wordt uit het kanon. 
+        //De horizontale kogel maakt gebruik van 'bulletDistanceX' en de kogel die in 45 graden beweegt van beiden integers.
+        int bulletDistanceX = 10;
+        int bulletDistanceY = 10;
+
+        /* Het doelwit dat van boven het speelveld naar beneden valt dient per frame te vallen met 2 pixels met behulp van 'dropDistanceY'. Zodra level 3 bereikt wordt bepaalt 'dropdistanceX' de afstand in de x-richting (left to right) en
+        * de integer 'shakeInt' bepaalt met behulp van een code verderop hoeveel frames er al geweest zijn om de waarde van 'dropDistanceX' bij een overschrijding om te keren. Deze waarde is in de start logischerwijs dus 0. */
+        int dropDistanceX = 2;
+        int dropDistanceY = 2;
+        int shakeInt = 0;
+
+        //De onderliggende variabelen bepalen in mijn ogen vooral alle achtergrondzaken. Deze achtergrondzaken zijn bij de start nog niet aangesproken en daarom allemaal ingesteld op 'false'.
+        int score = 0; //Totaalscore, bij start van het spel is deze nul.
+        bool fireLinearBulletOP = false; //Boolean om te bepalen of het kanon aan de rechterzijde horizontaal afgevuurd heeft of niet; met behulp van de letter 'O'.
+        bool fireDiagonalBulletOP = false; //Boolean om te bepalen of het kanon aan de rechterzijde diagonaal afgevuurd heeft of niet; met behulp van de letter 'P'.
+        bool fireLinearBulletWQ = false; //Boolean om te bepalen of het kanon aan de linkerzijde horizontaal afgevuurd heeft of niet; met behulp van de letter 'W'.
+        bool fireDiagonalBulletWQ = false; //Boolean om te bepalen of het kanon aan de linkerzijde diagonaal afgevuurd heeft of niet; met behulp van de letter 'Q'.
+        bool bulletFired = false; //Boolean om te bepalen óf er überhaupt een kogel afgevuurd is.
+        bool gameBegin = false; //Boolean om te bepalen of de gebruiker het spel gestart heeft.
+        bool gameReset = false; //Boolean om te bepalen of de speeltijd voorbij is; voor het laten zien van de eindscore en reset van het spel.
+        int timeLeft = 180000; //Tijd in milliseconden die de speler heeft; drie minuten in totaal.
+        int levelDeter = 0; //Integer om te bepalen in welk level de speler zit. In de 'private void levelDetermination()' wordt deze waarde helder.
+
+        //Om de code niet per object te schrijven, maar voor een reeks aan dezelfde objecten heb ik ervoor gekozen om twee arrays op te stellen.
+        PictureBox[] targetTrapDoor = new PictureBox[5]; //Array voor de Pictureboxes van de doelwitten.
+        PictureBox[] parentTargetTrapDoor = new PictureBox[5]; //Array voor de 'Parents' van de Pictureboxes. Dit geeft mij vrijheid om de Parent te verplaatsen in het spel en zo niet de daadwerkelijke coördinaten van de doelwitten in de code te moeten verwerken.
+
+        //Indexering van waarden die de volgorde van het vallen, snelheid van het vallen en de uitwijking in de x-richting bepalen.
+        int indexOrder = 0;
+        int indexSpeed = 1;
+        int indexDistanceX = 0;
+        Random rnd = new Random(); //Opstelling om het programma te vragen om willekeurige getallen aan te maken wanneer dat nodig is.
+
+        //Bepaling 'tooLate' als het doelwit de bodem van het spel raakt en 'wrongShot' als de gebruiker mis schiet.
+        bool tooLate = false;
+        bool wrongShot = false;
+
+        public Form1()
+        {
+            InitializeComponent(); //Start van alle componenten in de 'Form'.
+            setPictureboxes(); //Instellingen die aan de start gedaan moeten worden of bij een reset. Samenstellen van arrays is hierin ook verwerkt.
+            screenRestart.Visible = false; // Onzichtbaar maken van het startscherm.
+            restartScoreText.Visible = false; // Onzichtbaar maken van de weergave van de 'Eindscore'.
+            screenStart.Visible = true; //Zichtbaar maken van het startscherm.
+            StartPosition = FormStartPosition.CenterScreen; //Hiermee zorg ik ervoor dat het spel altijd in midden van het beeldscherm gestart wordt. Geen nut, wel mooi naar mijn smaak.
+        }
+
+        ///////Hieronder zijn er drie gameEvent-voids te vinden. Deze sturen in de basis het spel.
+        private void gameTimerEvent(object sender, EventArgs e) //Event dat bij de start van het spel telkens opnieuw afgespeeld wordt; bij wijze van een frame. Alle acties in het vervolg van de code zijn gebaseerd op deze gameTimer met interval == 1.
+        {
+            if (gameBegin) //Wanneer gebruiker het spel start, totdat de gebruiker het spel pauzeert, zal deze if-statement uitgevoerd worden. De eigenschappen van de gebruikte voids is te vinden in de voids zelf.
+            {
+                levelDetermination(); //Bepalen welk level gestart moet worden.
+                targetDrop(); //Eerste doelwit laten vallen
+                cannonFire(); //Gebruiker kan doelwitten afschieten gebaseerd op input.
+                didItHit(); //Bepaling of het doelwit geraakt is, dan wel de randen van het spel.
+                scoreText.Text = "Score = " + score; //Weergave van de score in een Label. 
+                timeLeft -= 10; //Elke loop zal de tijd verminderen met -10. Deze correctie is gekozen om een tijd van nagenoeg drie minuten te krijgen.
+                timeLeftText.Text = "Tijd over = " + timeLeft/1000; //Weergave van tijd die gebruiker over heeft om het spel te spelen.
+
+            }
+            if (timeLeft == 0) //Als de gebruiker door de tijd is moet de volgende loop uitgevoerd worden.
+            {
+                setPictureboxes(); //Reset van waarden gebruikte Pictureboxes en integers.
+                gameBegin = false;
+                gameReset = true; //Reset moet gebeuren; Restartscherm wordt weergegeven door onderstaande code.
+                screenRestart.Visible = true;
+                restartScoreText.Text = score.ToString(); // Label op het restartscherm dat de eindscore weergeeft.
+                restartScoreText.Visible = true;
+            }
+        }
+
+        private void gameKeyDown(object sender, KeyEventArgs e) //Gebruikt event om na te gaan of gebruiker toetsen indrukt.
+        {
+            if (e.KeyCode == Keys.Space && !gameBegin && !gameReset) //Hier is gebruik gemaakt van de notatie 'boolean' of '!boolean' om de code in te perken en toch te kunnen werken met check voor boolean. Start van het spel.
+            {
+                gameBegin = true;
+                screenStart.Visible = false;
+            }
+            else if (e.KeyCode == Keys.Space && gameBegin && !gameReset) //Pauzeren van het spel; tijd en score worden niet gereset.
+            {
+                gameBegin = false;
+                screenStart.Visible = true;
+            }
+            else if (e.KeyCode == Keys.Space && !gameBegin && gameReset) //Eind van het spel. Speler kan het spel opnieuw starten.
+            {
+                score = 0; //Score weer nul.
+                levelDeter = 0; //Speler mag weer beginnen bij level 1.
+                gameBegin = true; //Spel start weer.
+                timeLeft = 180000; //Naast 'setPictureboxes()' is dit ook een waarde die aangepast wordt, maar elke keer. Dat is de reden dat deze hier apart staat vermeldt.
+                gameReset = false;
+                screenRestart.Visible = false;
+                restartScoreText.Visible = false;
+            }
+            else if (e.KeyCode == Keys.Escape) //Volledige reset gedurende het spel zelf. Hier moet dus ook in de code 'setPictureboxes' terugkomen daar dit niet door het einde van de tijd zelf gebeurt.
+            {
+                setPictureboxes();
+                gameBegin = false; //Spel start niet. Ik wil graag dat speler eerst terug gaat naar het startscherm. Als een soort pas op de plaats om niet meteen door te moeten gaan. Er wordt niet voor niets op 'Escape' gedrukt.
+                screenStart.Visible = true;
+                score = 0; //Score weer nul.
+                levelDeter = 0; //Speler mag weer beginnen bij level 1.
+                timeLeft = 180000;
+            }
+
+            if (gameBegin) //Pas wanneer het spel gestart is, is het spel gevoelig voor het indrukken van onderstaande toetsen. Ook hier maak ik gebruik van 'boolean' of '!boolean' om de waarde van de boolean te gebruiken. Dit reduceert code.
+            { /* Wanneer een toets ingedrukt wordt moet het spel weten dat deze toets ingedrukt is. Dit gebeurt met bijvoorbeeld 'fireLinearBulletWQ' om er zeker van te zijn dat de horizontale kogel, van WQ, afgeschoten is.
+              Om er een extra spelelement aan toe te voegen heb ik er voor gekozen om met 'bulletFired' te bepalen of er een kogel afgeschoten is en daarmee kan de gebruiker maar één kogel tegelijk afvuren. De gebruiker moet dus spaarzaam zijn! 
+              'shootingSettings()' zijn instellingen die nodig zijn om het schieten 'gereed' te maken; zodat alles bepaald kan worden. */
+                if (e.KeyCode == Keys.W && !bulletFired && !fireDiagonalBulletWQ && !fireDiagonalBulletOP && !fireLinearBulletOP)
+                {
+                    bulletWQ.Visible = true;
+                    fireLinearBulletWQ = true;
+                    shootingSettings();
+                }
+                if (e.KeyCode == Keys.Q && !bulletFired && !fireLinearBulletWQ && !fireDiagonalBulletOP && !fireLinearBulletOP)
+                {
+                    bulletWQ.Visible = true;
+                    fireDiagonalBulletWQ = true;
+                    shootingSettings();
+                }
+                if (e.KeyCode == Keys.O && !bulletFired && !fireDiagonalBulletOP && !fireLinearBulletWQ && !fireDiagonalBulletWQ)
+                {
+                    bulletOP.Visible = true;
+                    fireLinearBulletOP = true;
+                    shootingSettings();
+                }
+                if (e.KeyCode == Keys.P && !bulletFired && !fireLinearBulletOP && !fireLinearBulletWQ && !fireDiagonalBulletWQ)
+                {
+                    bulletOP.Visible = true;
+                    fireDiagonalBulletOP = true;
+                    shootingSettings();
+                }
+            }
+        }
+
+        private void gameKeyUp(object sender, KeyEventArgs e) //Zodra de gebruiker de toets loslaat kan de code gereed gemaakt worden om een nieuwe input te ontvangen.
+        {
+            if (e.KeyCode == Keys.W)
+            {
+                bulletFired = false;
+            }
+            if (e.KeyCode == Keys.Q)
+            {
+                bulletFired = false;
+            }
+            if (e.KeyCode == Keys.O)
+            {
+                bulletFired = false;
+            }
+            if (e.KeyCode == Keys.P)
+            {
+                bulletFired = false;
+            }
+        }
+
+        //////Hieronder zijn de subacties te vinden. Wanneer er iets door de gebruiker ingevoerd wordt worden deze voids aangesproken/komen in actie.
+        private void targetDrop() //In deze void wordt het pad van de doelwitten bepaald. 'levelDeter == 0' is level 1, 'levelDeter == 1' is level 2 en 'levelDeter == 2' is level 3
+        {
+            targetTrapDoor[indexOrder].Visible = true; //Bij het afschieten mag het doelwit natuurlijk zichtbaar worden.
+            targetTrapDoor[indexOrder].Top += dropDistanceY * indexSpeed; //Doelwit vergroot per event afstand tot bovenste rand van het scherm. Deze afstand is bepaald met behulp van de indexSpeed welke pas vanaf level 2 en 3 hoger is dan 1.
+
+            if (levelDeter == 2) //Wanneer level 3 behaald is gaan sommigen doelwitten een s-beweging afleggen door middel een verandering in pixels in de x-richting (t.o.v. kader Left).
+            {
+                shakeInt++; //Telkens wanneer deze if-statement doorlopen gaat worden zal 'shakeInt' toenemen met 1. Op deze manier zal het doelwit eerst 50 stappen naar de ene kant opmaken om vervolgens 50 stappen (van 50 tot 100) de andere kant op te maken.
+                if (shakeInt < 50)
+                {
+                    targetTrapDoor[indexOrder].Left += dropDistanceX * indexDistanceX * indexSpeed; //Voor het moeilijke element van Level 3 zal hierbij ook de snelheid in achtgenomen worden. Deze zal de beweging extra variëren.
+                }
+                else if (shakeInt < 101 && shakeInt > 50)
+                {
+                    targetTrapDoor[indexOrder].Left -= dropDistanceX * indexDistanceX * indexSpeed;
+                    if (shakeInt == 100)
+                    {
+                        shakeInt = 0;
+                    }
+                }
+            }
+
+            if (targetTrapDoor[indexOrder].Bounds.IntersectsWith(bottomLevel.Bounds)) //Wanneer het doelwit de onderkant van het scherm raakt, een Picturebox die als bodem fungeert, is de gebruikt 'too Late'. Ook hier met behulp van bounds van Pictureboxes.
+            {
+                tooLate = true;
+                subScoreDescend(); //Void om de negatieve subscore te bepalen.
+                targetTrapDoor[indexOrder].Visible = false; //Doelwit mag verdwijnen.
+                targetTrapDoor[indexOrder].Location = parentTargetTrapDoor[indexOrder].Location; //Doelwit wordt teruggeplaatst op startpositie, locatie bepaald aan de hand van Parent.
+                indexDetermination(); //Afhankelijk van de nieuwe score wordt er via deze void bepaald of de gebruiker een level hoger mag.
+            }
+        }
+
+        private void cannonFire() //In deze void wordt de baan van een kogel bepaald, afhankelijk van de boolean die true is.
+        {
+            if (fireLinearBulletWQ)
+            {
+                bulletWQ.Left += bulletDistanceX; //Ten opzichte van het linkerkader van het scherm vergroot het programma de afstand van de kogel om daarmee het horizontaal afschieten te simuleren, naar rechts.
+            }
+            if (fireDiagonalBulletWQ)
+            {
+                bulletWQ.Left += bulletDistanceX; //Ten opzichte van het linkerkader van het scherm vergroot het programma de afstand van de kogel om daarmee het horizontaal afschieten te simuleren, naar rechts.
+                bulletWQ.Top -= bulletDistanceY;  //Samen met de verkleining van de afstand ten opzichte van het bovenste kader zal de kogel hier een hoek van 45 graden maken.
+            }
+            if (fireLinearBulletOP)
+            {
+                bulletOP.Left -= bulletDistanceX; //Ten opzichte van het linkerkader van het scherm verkleint het programma de afstand van de kogel om daarmee het horizontaal afschieten te simuleren, naar links.
+            }
+            if (fireDiagonalBulletOP)
+            {
+                bulletOP.Left -= bulletDistanceX; //Ten opzichte van het linkerkader verkleint het programma de afstand van de kogel om daarmee het horizontaal afschieten te simuleren, naar links.
+                bulletOP.Top -= bulletDistanceY; //Samen met de verkleining van de afstand ten opzichte van het bovenste kader zal de kogel hier een hoek van 45 graden maken.
+            }
+        }
+
+        private void didItHit() //In deze void wordt bepaald of de kogel iets geraakt heeft en wat er moet gebeuren.
+        {
+            if (bulletWQ.Bounds.IntersectsWith(cannonO.Bounds) || //De gebruiker kan verkeerd schieten wanneer de kogel van W, het kanon rechts raakt of de kogel van O, het kanon van links raakt.
+                bulletOP.Bounds.IntersectsWith(cannonW.Bounds) || //Met behulp van de bounds van Pictureboxes bepaal ik of deze elkaar raken.
+                bulletWQ.Bounds.IntersectsWith(roofLevel.Bounds) || //Ditzelfde geldt voor wanneer een kogel de bovenkant van het scherm raakt. Om hier niet met coördinaten te werken die telkens bij een wijziging aan gepast moeten worden,
+                bulletOP.Bounds.IntersectsWith(roofLevel.Bounds)) //werk ik hier met een Picturebox dat het plafond moet voorstellen. Hier ben ik vrij om het plafond te verschuiven wanneer dat nodig is tijdens het ontwerpen.
+            {
+                wrongShot = true; //Wanneer deze if-statement waar is, heeft de gebruiker misgeschoten.
+                subScoreDescend(); //Void om de negatieve subscore te bepalen.
+                resetDidItHit(); //Afschieten heeft plaatsgevonden dus moet alles gereset worden, zodat de gebruiker opnieuw kan schieten. Reset specifiek voor na void 'didItHit()'.
+            }
+
+            if (bulletWQ.Bounds.IntersectsWith(targetTrapDoor[indexOrder].Bounds) || //De gebruiker raakt het doelwit. Let op: Afhankelijk van indexOrder is het bepaald welk doelwit er valt (uit de vijf gaten).
+                bulletOP.Bounds.IntersectsWith(targetTrapDoor[indexOrder].Bounds)) //De array weet hierbij om welk doelwit/Picturebox het gaat.
+            {
+                subScoreAscend(); //Void om de positieve subscore te bepalen.
+                resetDidItHit(); //Afschieten heeft plaatsgevonden dus moet alles gereset worden, zodat de gebruiker opnieuw kan schieten. Reset specifiek voor na void 'didItHit()'.
+                targetTrapDoor[indexOrder].Visible = false; //Doelwit mag verdwijnen.
+                targetTrapDoor[indexOrder].Location = parentTargetTrapDoor[indexOrder].Location; //Doelwit wordt teruggeplaatst op startpositie, locatie bepaald aan de hand van Parent.
+                indexDetermination(); //Afhankelijk van de nieuwe score wordt er via deze void bepaald of de gebruiker een level hoger mag.
+            }
+        }
+
+
+        ////// Hieronder zijn de twee voids te vinden die de score bepalen nadat er een actie plaatsgevonden heeft.    
+        private void subScoreAscend() //In deze void wordt bepaald hoe groot de toename van score is. Eveneens wordt er bepaald waar de aanduiding van toegenomen score mag weergegeven worden.
+        {
+            subScoreText.Location = targetTrapDoor[indexOrder].Location; //Subscore/behaalde tussenscore, mag op de plek komen waar het doelwit geraakt is.
+            subScoreText.Visible = true; //Weergave van de subscore.
+            if (indexDistanceX == 0) //Bepaling van de score voor level 1 en 2 waar het doelwit nog geen s-bewegingen maakt.
+            {
+                score += indexSpeed; //Aangezien in level 1 de indexSpeed een waarde van 1 heeft kan ik deze hier gebruiken als toename voor de score. Zodra level 2 dan behaald is wordt hier meteen de hogere waarden meegenomen daar de moeilijkheidsgraad ook hoger is.
+                subScoreText.Text = indexSpeed.ToString(); //Geen nieuwe class aangemaakt voor weergave van subScore. Waarde van indexSpeed voldoet in deze situatie.
+            }
+            else //Wanneer level 3 behaald is, is de indexDistanceX een waarde hoger dan 0. De volgende statement wordt daarmee automatisch afgelopen.
+            {
+                int subScoreElse = indexSpeed * indexDistanceX; //Plaatselijke integer aangemaakt daar deze nergens anders nodig is. Hiermee wordt de score bepaald aan de hand van de snelheid en de uitwijking van het doelwit in deze void.
+                score += subScoreElse;
+                subScoreText.Text = subScoreElse.ToString(); //Weergave van de behaalde subscore.
+            }
+        }
+        private void subScoreDescend() //In deze void wordt bepaald hoe groot de afname van score is. Eveneens wordt er bepaald waar de aanduiding van afgenomen score mag weergegeven worden. Er wordt onderscheid gemaakt tussen twee mogelijkheden.
+        {
+            score--; //Elke misstap wordt bestraft met één punt aftrek.
+            subScoreText.Text = "-1"; //Weergave van de subscore.
+            if (tooLate && !wrongShot) //Actief wanneer het doelwit de onderkant van het scherm raakt.
+            {
+                subScoreText.Location = targetTrapDoor[indexOrder].Location; //subScore wordt weergegeven op locatie van het verdwijnende doelwit.
+                wrongShot = false; //Tegengaan dat er mogelijk ook geteld wordt met 'wrongShot'.
+            }
+            else if (wrongShot && !tooLate) //Actief wanneer kogel mis schiet.
+            {
+                subScoreText.Location = new Point (960, 540); //subScore wordt weergegeven op het midden van het speelveld.
+                tooLate = false; //Tegengaan dat er mogelijk ook geteld wordt met 'wrongShot'.
+            }
+                subScoreText.Visible = true; //subScore is klaar om zichtbaar gemaakt te worden.
+
+        }
+
+
+        ///////Hieronder zijn de voids te vinden die instellingen wijzigen of resetten. Deze worden aangesproken wanneer een actievoid in werking is.
+        private void shootingSettings() //In deze void is het mogelijk om de instellingen aan te passen voor wat er moet gebeuren nadat er door de gebruiker geschoten is. Elke void wordt op deze manier met de juiste instellingen uitgevoerd.
+        {
+            bulletFired = true; //Boolean om te bepalen dat er geschoten is.
+            subScoreText.Visible = false; //subScore mag na het weergeven van de subScore weer verdwijnen.
+            tooLate = false; //Resetten van boolean.
+            wrongShot = false; //Resetten van boolean.
+        }
+
+        private void resetDidItHit() //In deze void wordt alles gereset nadat er bepaald is of er iets door gebruiker geraakt is.
+        {
+            bulletWQ.Visible = false;
+            bulletOP.Visible = false;
+            bulletFired = false;
+            bulletWQ.Location = parentBulletWQ.Location; //In het speelveld maak ik gebruik van onzichtbare Parent-pictureboxes die achter de zichtbare Pictureboxes zitten. Met behulp van de array hoef ik op deze manier geen coördinaten in te voeren
+            bulletOP.Location = parentBulletOP.Location; //maar koppel ik de zichtbare Pictureboxes aan deze Parents en de bijbehorende locatie.
+            fireLinearBulletWQ = false;
+            fireLinearBulletOP = false;
+            fireDiagonalBulletWQ = false;
+            fireDiagonalBulletOP = false;
+        }
+
+        private void setPictureboxes() //In deze void staan instellingen voor de basis van het spel. Aanmaken van Arrays voor Pictureboxes van doelwitten en Parent-doelwitten.
+        {
+            //Onzichtbaar maken van kogels en subScore
+            bulletWQ.Visible = false;
+            bulletOP.Visible = false;
+            subScoreText.Visible = false;
+
+            //Doelwit A gereedmaken; array opstellen voor zowel doelwit A als parent-array.
+            targetTrapDoorA.Visible = false;
+            targetTrapDoor[0] = targetTrapDoorA;
+            parentTargetTrapDoor[0] = parentTargetTrapDoorA;
+
+            //Doelwit B gereedmaken; array opstellen voor zowel doelwit B als parent-array.
+            targetTrapDoorB.Visible = false;
+            targetTrapDoor[1] = targetTrapDoorB;
+            parentTargetTrapDoor[1] = parentTargetTrapDoorB;
+
+            //Doelwit C gereedmaken; array opstellen voor zowel doelwit C als parent-array.
+            targetTrapDoorC.Visible = false;
+            targetTrapDoor[2] = targetTrapDoorC;
+            parentTargetTrapDoor[2] = parentTargetTrapDoorC;
+
+            //Doelwit D gereedmaken; array opstellen voor zowel doelwit D als parent-array.
+            targetTrapDoorD.Visible = false;
+            targetTrapDoor[3] = targetTrapDoorD;
+            parentTargetTrapDoor[3] = parentTargetTrapDoorD;
+
+            //Doelwit E gereedmaken; array opstellen voor zowel doelwit E als parent-array.
+            targetTrapDoorE.Visible = false;
+            targetTrapDoor[4] = targetTrapDoorE;
+            parentTargetTrapDoor[4] = parentTargetTrapDoorE;
+
+            //Een eventuele verloren doelwit terugplaatsen naar de locatie van de statisch geplaatste parent.
+            targetTrapDoor[indexOrder].Location = parentTargetTrapDoor[indexOrder].Location;
+
+            //Resetten van indexeringen en booleans voor start van het spel; of reset van het gehele spel.
+            indexOrder = 0;
+            indexSpeed = 1;
+            indexDistanceX = 0;
+            tooLate = false;
+            wrongShot = false;
+        }
+
+        //////Hieronder zijn de voids te vinden die de indexeringen doen en bepalen waar de gebruiker in het verloop van het spel staat.
+        private void indexDetermination() //In deze void worden alle indexcijfers bepaalt voor het verdere verloop van de loop.
+        {
+            indexOrder = rnd.Next(0, 5); //Bepaling van het doelwit dat willekeurig moet vallen. Waarbij er vijf doelwitten te kiezen zijn. Met 0 als startwaarde t/m 4 als eindwaarde.
+
+            if (levelDeter > 0) //Bepaling of het hier gaat om level 2 of 3.
+            {
+                indexSpeed = rnd.Next(1, 4); //Bepaling van de mate van valsnelheid van het doelwit, dat pas actief is bij level 2 en 3. Met 1 als startwaarde (er is in ieder geval snelheid nodig) t/m 3 * 'dropDistanceY' als maximale snelheid.
+            }
+            else
+            {
+                indexSpeed = 1; //Else-statement maakt dat deze regel pas actief is als het hier enkel gaat om level 1.
+            }
+
+            if (levelDeter == 2) //Bepaling of het hier gaat om level 3.
+            {
+                indexDistanceX = rnd.Next(0, 3); //Bepaling van de mate van uitwijking in de x-richting. Met als 0 als startwaarde (geen uitwijking) t/m 2 * dropDistanceX' als maximale uitwijking in de x-richting.
+            }
+            else
+            {
+                indexDistanceX = 0; //Else-statement maakt dat de x-richting pas uitwijkt bij level 3. Het is belangrijk dat het hier staat als daar level 1 en 2 per definitie niet mogen uitwijken in de x-richting.
+            }
+        }
+        private void levelDetermination() //In deze void wordt er bepaald in welk level de gebruiker is.
+        {
+            //Wanneer onderstaande 'If' of 'Else if' niet gehaald worden blijft de gebruiker in level 1 met levelDeter == 0.
+            if (score == 15) //Bij het behalen van 15 punten gaat de gebruiker ongestoord door naar level 2. Dit level veranderd niet daar het juist de uitdaging moet zijn om met moeilijkheden dezelfde of een hogere score te halen.
+            {
+                levelDeter = 1;
+            }
+            else if (score >= 30) //Bij het behalen van 30 punten gaat de gebruiker ongestoord door naar level 3. Dit level veranderd niet daar het juist de uitdaging moet zijn om met moeilijkheden dezelfde of een hogere score te halen.
+            {
+                levelDeter = 2;
+            }
+
+            if (levelDeter == 0) //Level 1
+            {
+                levelDeterText.Text = "Level 1";
+            }
+            else if (levelDeter == 1) //Level 2
+            {
+                levelDeterText.Text = "Level 2";
+            }
+            else if (levelDeter == 2) //Level 3
+            {
+                levelDeterText.Text = "Level 3";
+            }
+        }
+    }
+}
